@@ -24,12 +24,21 @@ export default function ScrollyTellingCanvas({
   const targetFrameRef = useRef(1);      // Where scroll says we should be
   const rafIdRef = useRef<number>(0);
 
+  // Capture latest callbacks in refs to prevent triggering the preload effect multiple times
+  const onLoadProgressRef = useRef(onLoadProgress);
+  const onLoadCompleteRef = useRef(onLoadComplete);
+
+  useEffect(() => {
+    onLoadProgressRef.current = onLoadProgress;
+    onLoadCompleteRef.current = onLoadComplete;
+  });
+
   // ---- Image Preloading (all at once, no batching for speed) ----
   useEffect(() => {
     let loaded = 0;
     
     // Call initial progress
-    onLoadProgress?.(0, FRAME_COUNT);
+    onLoadProgressRef.current?.(0, FRAME_COUNT);
 
     for (let i = 0; i < FRAME_COUNT; i++) {
       const img = new Image();
@@ -39,21 +48,21 @@ export default function ScrollyTellingCanvas({
         imagesRef.current[i] = img;
         loaded++;
         setImagesLoaded(loaded);
-        onLoadProgress?.(loaded, FRAME_COUNT);
+        onLoadProgressRef.current?.(loaded, FRAME_COUNT);
         if (loaded === FRAME_COUNT) {
-          onLoadComplete?.();
+          onLoadCompleteRef.current?.();
         }
       };
       img.onerror = () => {
         loaded++;
         setImagesLoaded(loaded);
-        onLoadProgress?.(loaded, FRAME_COUNT);
+        onLoadProgressRef.current?.(loaded, FRAME_COUNT);
         if (loaded === FRAME_COUNT) {
-          onLoadComplete?.();
+          onLoadCompleteRef.current?.();
         }
       };
     }
-  }, [onLoadProgress, onLoadComplete]);
+  }, []);
 
   // ---- Canvas sizing ----
   const setCanvasSize = useCallback(() => {

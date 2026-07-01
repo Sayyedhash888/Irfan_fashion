@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ScrollyTellingCanvas from "@/components/ScrollyTellingCanvas";
 import StoryOverlay from "@/components/StoryOverlay";
@@ -209,7 +209,7 @@ export default function Home() {
     };
   }, []);
 
-  const handleLoadProgress = (loaded: number, total: number) => {
+  const handleLoadProgress = useCallback((loaded: number, total: number) => {
     const percent = (loaded / total) * 100;
     targetProgressRef.current = percent;
 
@@ -221,7 +221,7 @@ export default function Home() {
         setIsLoadedComplete(true);
       }, remainingTime);
     }
-  };
+  }, []);
 
   return (
     <main className="relative min-h-screen">
