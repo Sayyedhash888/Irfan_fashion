@@ -6,9 +6,15 @@ const FRAME_COUNT = 300;
 
 interface ScrollyTellingCanvasProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
+  onLoadProgress?: (loaded: number, total: number) => void;
+  onLoadComplete?: () => void;
 }
 
-export default function ScrollyTellingCanvas({ containerRef }: ScrollyTellingCanvasProps) {
+export default function ScrollyTellingCanvas({ 
+  containerRef,
+  onLoadProgress,
+  onLoadComplete
+}: ScrollyTellingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imagesRef = useRef<(HTMLImageElement | null)[]>(new Array(FRAME_COUNT).fill(null));
   const [imagesLoaded, setImagesLoaded] = useState(0);
@@ -21,6 +27,10 @@ export default function ScrollyTellingCanvas({ containerRef }: ScrollyTellingCan
   // ---- Image Preloading (all at once, no batching for speed) ----
   useEffect(() => {
     let loaded = 0;
+    
+    // Call initial progress
+    onLoadProgress?.(0, FRAME_COUNT);
+
     for (let i = 0; i < FRAME_COUNT; i++) {
       const img = new Image();
       const paddedIndex = (i + 1).toString().padStart(3, "0");
@@ -29,13 +39,21 @@ export default function ScrollyTellingCanvas({ containerRef }: ScrollyTellingCan
         imagesRef.current[i] = img;
         loaded++;
         setImagesLoaded(loaded);
+        onLoadProgress?.(loaded, FRAME_COUNT);
+        if (loaded === FRAME_COUNT) {
+          onLoadComplete?.();
+        }
       };
       img.onerror = () => {
         loaded++;
         setImagesLoaded(loaded);
+        onLoadProgress?.(loaded, FRAME_COUNT);
+        if (loaded === FRAME_COUNT) {
+          onLoadComplete?.();
+        }
       };
     }
-  }, []);
+  }, [onLoadProgress, onLoadComplete]);
 
   // ---- Canvas sizing ----
   const setCanvasSize = useCallback(() => {
@@ -156,14 +174,6 @@ export default function ScrollyTellingCanvas({ containerRef }: ScrollyTellingCan
         ref={canvasRef}
         className="w-full h-full"
       />
-      {imagesLoaded < FRAME_COUNT * 0.3 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand-bg gap-6">
-          <div className="w-12 h-12 border-4 border-brand-accent border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-brand-text/40 text-sm font-medium tracking-wider uppercase">
-            Loading experience...
-          </p>
-        </div>
-      )}
     </div>
   );
 }
