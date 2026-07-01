@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import ScrollyTellingCanvas from "@/components/ScrollyTellingCanvas";
 import StoryOverlay from "@/components/StoryOverlay";
 import StatsSection from "@/components/StatsSection";
@@ -14,7 +15,7 @@ export default function Home() {
   
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
-  const [fadeAway, setFadeAway] = useState(false);
+  const [isLoadedComplete, setIsLoadedComplete] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
 
   // Auto-scroll control refs
@@ -73,6 +74,10 @@ export default function Home() {
     if (isAutoScrollingRef.current) {
       isInterruptedRef.current = true;
     }
+  };
+
+  const handleEnter = () => {
+    setIsLoading(false);
   };
 
   // Manage body scroll lock during loading state
@@ -142,13 +147,7 @@ export default function Home() {
     setLoadProgress(percent);
 
     if (loaded === total) {
-      // Smooth fade transition
-      setTimeout(() => {
-        setFadeAway(true);
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 1000); // Wait for the 1s CSS transition to complete
-      }, 500); // Hold at 100% briefly for visual satisfaction
+      setIsLoadedComplete(true);
     }
   };
 
@@ -171,36 +170,73 @@ export default function Home() {
       <Footer />
 
       {/* Elegant Premium Loading Page Overlay */}
-      {isLoading && (
-        <div 
-          className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#faf9f6] text-brand-text transition-opacity duration-1000 ${
-            fadeAway ? "opacity-0 pointer-events-none" : "opacity-100"
-          }`}
-        >
-          <div className="max-w-md w-full px-8 text-center flex flex-col items-center">
-            {/* Minimal Brand Logotype */}
-            <h2 className="text-4xl md:text-5xl font-bold tracking-widest uppercase mb-2">
-              IF FASHION
-            </h2>
-            <p className="text-xs font-semibold tracking-widest text-brand-text/40 uppercase mb-16">
-              Wholesale Campaign
-            </p>
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div 
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#faf9f6] text-brand-text"
+          >
+            <div className="max-w-md w-full px-8 text-center flex flex-col items-center">
+              {/* Minimal Brand Logotype */}
+              <motion.h2 
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="text-4xl md:text-5xl font-bold tracking-widest uppercase mb-2"
+              >
+                IF FASHION
+              </motion.h2>
+              <motion.p 
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 0.4 }}
+                transition={{ duration: 0.8, delay: 0.3 }}
+                className="text-xs font-semibold tracking-widest uppercase mb-16"
+              >
+                Wholesale Campaign
+              </motion.p>
 
-            {/* Premium Gold Accent Progress Bar */}
-            <div className="w-full bg-brand-text/5 h-[2px] mb-4 rounded-full overflow-hidden relative">
-              <div 
-                className="h-full bg-brand-accent transition-all duration-300 ease-out" 
-                style={{ width: `${loadProgress}%` }}
-              />
-            </div>
+              {/* Progress / CTA Action Box */}
+              <div className="w-full min-h-[80px] flex flex-col items-center justify-center">
+                {!isLoadedComplete ? (
+                  <motion.div 
+                    key="progress"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="w-full"
+                  >
+                    {/* Premium Gold Accent Progress Bar */}
+                    <div className="w-full bg-brand-text/5 h-[2px] mb-4 rounded-full overflow-hidden relative">
+                      <div 
+                        className="h-full bg-brand-accent transition-all duration-300 ease-out" 
+                        style={{ width: `${loadProgress}%` }}
+                      />
+                    </div>
 
-            <div className="flex justify-between w-full text-[10px] font-bold tracking-wider text-brand-text/50 uppercase">
-              <span>Sourcing Craftsmanship</span>
-              <span>{Math.round(loadProgress)}%</span>
+                    <div className="flex justify-between w-full text-[10px] font-bold tracking-wider text-brand-text/50 uppercase">
+                      <span>Sourcing Craftsmanship</span>
+                      <span>{Math.round(loadProgress)}%</span>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.button 
+                    key="button"
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 120, damping: 18 }}
+                    onClick={handleEnter}
+                    className="px-12 py-4 text-xs font-bold tracking-widest text-[#faf9f6] bg-brand-text rounded-full hover:bg-brand-text/90 hover:shadow-[0_8px_30px_rgba(30,41,59,0.25)] active:scale-95 transition-all duration-300 pointer-events-auto uppercase cursor-pointer border border-brand-text"
+                  >
+                    Enter Experience
+                  </motion.button>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
