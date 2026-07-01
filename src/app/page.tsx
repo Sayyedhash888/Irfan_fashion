@@ -15,7 +15,7 @@ export default function Home() {
   return (
     <main className="relative min-h-screen">
       {/* Immersive Hero Canvas Scrollytelling (Sticky Container) */}
-      <div ref={containerRef} className="relative w-full h-[3000vh]">
+      <div ref={containerRef} className="relative w-full h-[800vh]">
         <ScrollyTellingCanvas containerRef={containerRef} />
         <StoryOverlay containerRef={containerRef} />
       </div>
