@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useScroll, useTransform, useMotionValueEvent, useSpring } from "framer-motion";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 const FRAME_COUNT = 300;
-const PRELOAD_BATCH_SIZE = 50;
 
 interface ScrollyTellingCanvasProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -15,131 +13,155 @@ export default function ScrollyTellingCanvas({ containerRef }: ScrollyTellingCan
   const imagesRef = useRef<(HTMLImageElement | null)[]>(new Array(FRAME_COUNT).fill(null));
   const [imagesLoaded, setImagesLoaded] = useState(0);
 
-  // Track scroll progress specifically across the hero container
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end end"]
-  });
-  
-  // Apply a spring to smooth out the choppiness of native scrolling
-  const smoothProgress = useSpring(scrollYProgress, {
-    damping: 50,
-    stiffness: 400,
-    mass: 0.1
-  });
-  
-  // Map smooth scroll progress (0-1) to frame index (1-300)
-  const frameIndex = useTransform(smoothProgress, [0, 1], [1, FRAME_COUNT]);
-  const currentIndexRef = useRef(1);
+  // Smooth animation state — no Framer Motion, pure rAF interpolation
+  const currentFrameRef = useRef(1);     // The currently displayed (interpolated) frame
+  const targetFrameRef = useRef(1);      // Where scroll says we should be
+  const rafIdRef = useRef<number>(0);
 
+  // ---- Image Preloading (all at once, no batching for speed) ----
   useEffect(() => {
-    // Preload images in batches to prevent overwhelming the browser
-    const preloadImages = async () => {
-      for (let i = 0; i < FRAME_COUNT; i += PRELOAD_BATCH_SIZE) {
-        const batch = Array.from({ length: Math.min(PRELOAD_BATCH_SIZE, FRAME_COUNT - i) }, (_, j) => {
-          const index = i + j + 1;
-          return new Promise<void>((resolve) => {
-            const img = new Image();
-            // Format number with leading zeros (e.g., 001, 042, 300)
-            const paddedIndex = index.toString().padStart(3, "0");
-            img.src = `/hero_images/ezgif-frame-${paddedIndex}.jpg`;
-            img.onload = () => {
-              imagesRef.current[index - 1] = img;
-              setImagesLoaded((prev) => prev + 1);
-              resolve();
-            };
-            img.onerror = () => {
-              console.error(`Failed to load image index ${index}`);
-              resolve(); // Resolve anyway to continue loading
-            };
-          });
-        });
-        await Promise.all(batch);
-      }
-    };
-
-    preloadImages();
-  }, []);
-
-  // Draw the initial frame once loaded
-  useEffect(() => {
-    if (imagesLoaded > 0 && canvasRef.current && imagesRef.current[0]) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        // Set canvas size matching window or typical 16:9 aspect ratio
-        // For a full-screen premium look, cover the window
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        
-        drawFrame(1);
-      }
+    let loaded = 0;
+    for (let i = 0; i < FRAME_COUNT; i++) {
+      const img = new Image();
+      const paddedIndex = (i + 1).toString().padStart(3, "0");
+      img.src = `/hero_images/ezgif-frame-${paddedIndex}.jpg`;
+      img.onload = () => {
+        imagesRef.current[i] = img;
+        loaded++;
+        setImagesLoaded(loaded);
+      };
+      img.onerror = () => {
+        loaded++;
+        setImagesLoaded(loaded);
+      };
     }
-  }, [imagesLoaded]);
-
-  // Handle window resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (canvasRef.current) {
-        canvasRef.current.width = window.innerWidth;
-        canvasRef.current.height = window.innerHeight;
-        drawFrame(currentIndexRef.current);
-      }
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const drawFrame = (index: number) => {
+  // ---- Canvas sizing ----
+  const setCanvasSize = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    canvas.style.width = `${window.innerWidth}px`;
+    canvas.style.height = `${window.innerHeight}px`;
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.scale(dpr, dpr);
+  }, []);
+
+  useEffect(() => {
+    setCanvasSize();
+    window.addEventListener("resize", setCanvasSize);
+    return () => window.removeEventListener("resize", setCanvasSize);
+  }, [setCanvasSize]);
+
+  // ---- Draw a frame (using CSS-pixel dimensions) ----
+  const drawFrame = useCallback((frameFloat: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const img = imagesRef.current[index - 1];
+    const index = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round(frameFloat) - 1));
+    const img = imagesRef.current[index];
     if (!img) return;
 
-    // Calculate object-cover dimensions
-    const canvasRatio = canvas.width / canvas.height;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // Object-cover calculation
+    const canvasRatio = w / h;
     const imgRatio = img.width / img.height;
-    let drawWidth = canvas.width;
-    let drawHeight = canvas.height;
+    let drawWidth = w;
+    let drawHeight = h;
     let offsetX = 0;
     let offsetY = 0;
 
     if (canvasRatio > imgRatio) {
-      drawHeight = canvas.width / imgRatio;
-      offsetY = (canvas.height - drawHeight) / 2;
+      drawHeight = w / imgRatio;
+      offsetY = (h - drawHeight) / 2;
     } else {
-      drawWidth = canvas.height * imgRatio;
-      offsetX = (canvas.width - drawWidth) / 2;
+      drawWidth = h * imgRatio;
+      offsetX = (w - drawWidth) / 2;
     }
 
-    // Clear canvas before drawing
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Draw background color in case of gaps (matching the off-white)
-    ctx.fillStyle = "#faf9f6"; 
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#faf9f6";
+    ctx.fillRect(0, 0, w, h);
     ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-  };
+  }, []);
 
-  useMotionValueEvent(frameIndex, "change", (latest) => {
-    const index = Math.round(latest);
-    if (index !== currentIndexRef.current && index > 0 && index <= FRAME_COUNT) {
-      currentIndexRef.current = index;
-      requestAnimationFrame(() => drawFrame(index));
+  // ---- Scroll listener: compute target frame from container scroll ----
+  useEffect(() => {
+    const handleScroll = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const containerHeight = container.offsetHeight - window.innerHeight;
+      
+      // How far through the container are we? (0 to 1)
+      const scrolled = -rect.top;
+      const progress = Math.max(0, Math.min(1, scrolled / containerHeight));
+      
+      // Map to frame (1 to 300)
+      targetFrameRef.current = 1 + progress * (FRAME_COUNT - 1);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll(); // Initial call
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [containerRef]);
+
+  // ---- Smooth animation loop (lerp toward target) ----
+  useEffect(() => {
+    let lastDrawnFrame = -1;
+
+    const animate = () => {
+      const current = currentFrameRef.current;
+      const target = targetFrameRef.current;
+
+      // Lerp factor: 0.06 = very smooth & cinematic, 0.15 = responsive
+      // Using 0.08 for a buttery feel that still tracks well
+      const lerp = 0.08;
+      const next = current + (target - current) * lerp;
+
+      currentFrameRef.current = next;
+
+      // Only redraw when the rounded frame actually changes
+      const roundedFrame = Math.round(next);
+      if (roundedFrame !== lastDrawnFrame) {
+        lastDrawnFrame = roundedFrame;
+        drawFrame(next);
+      }
+
+      rafIdRef.current = requestAnimationFrame(animate);
+    };
+
+    rafIdRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafIdRef.current);
+  }, [drawFrame]);
+
+  // ---- Draw first frame once enough images are loaded ----
+  useEffect(() => {
+    if (imagesLoaded >= 1 && imagesRef.current[0]) {
+      drawFrame(1);
     }
-  });
+  }, [imagesLoaded, drawFrame]);
 
   return (
     <div className="sticky top-0 left-0 w-full h-screen overflow-hidden bg-brand-bg pointer-events-none -z-10">
       <canvas
         ref={canvasRef}
-        className="w-full h-full object-cover"
+        className="w-full h-full"
       />
-      {imagesLoaded < FRAME_COUNT * 0.1 && (
-        <div className="absolute inset-0 flex items-center justify-center bg-brand-bg">
+      {imagesLoaded < FRAME_COUNT * 0.3 && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand-bg gap-6">
           <div className="w-12 h-12 border-4 border-brand-accent border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-brand-text/40 text-sm font-medium tracking-wider uppercase">
+            Loading experience...
+          </p>
         </div>
       )}
     </div>
