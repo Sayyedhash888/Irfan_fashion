@@ -17,15 +17,46 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadedComplete, setIsLoadedComplete] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
+  
+  // Refs for tracking progress smoothly
+  const targetProgressRef = useRef(0);
+  const mountTimeRef = useRef<number>(0);
 
   // Auto-scroll control refs
   const isAutoScrollingRef = useRef(false);
   const isInterruptedRef = useRef(false);
   const animationFrameIdRef = useRef<number | null>(null);
-  const mountTimeRef = useRef<number>(0);
 
   useEffect(() => {
     mountTimeRef.current = Date.now();
+  }, []);
+
+  // Smooth lerp loop for loading progress bar to prevent glitching from 300 rapid parallel updates
+  useEffect(() => {
+    let active = true;
+    let currentProgress = 0;
+
+    const updateProgress = () => {
+      if (!active) return;
+      const target = targetProgressRef.current;
+      
+      // Smoothly slide progress (8% of the way to target per frame)
+      const diff = target - currentProgress;
+      if (Math.abs(diff) > 0.05) {
+        currentProgress += diff * 0.08;
+        setLoadProgress(currentProgress);
+      } else if (currentProgress !== target) {
+        currentProgress = target;
+        setLoadProgress(currentProgress);
+      }
+
+      requestAnimationFrame(updateProgress);
+    };
+
+    requestAnimationFrame(updateProgress);
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Trigger the 10s auto-scroll animation
@@ -180,7 +211,7 @@ export default function Home() {
 
   const handleLoadProgress = (loaded: number, total: number) => {
     const percent = (loaded / total) * 100;
-    setLoadProgress(percent);
+    targetProgressRef.current = percent;
 
     if (loaded === total) {
       const elapsed = Date.now() - mountTimeRef.current;
@@ -255,7 +286,7 @@ export default function Home() {
                     {/* Premium Gold Accent Progress Bar */}
                     <div className="w-full bg-brand-text/5 h-[2px] mb-4 rounded-full overflow-hidden relative">
                       <div 
-                        className="h-full bg-brand-accent transition-all duration-300 ease-out" 
+                        className="h-full bg-brand-accent" 
                         style={{ width: `${loadProgress}%` }}
                       />
                     </div>
