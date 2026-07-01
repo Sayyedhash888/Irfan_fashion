@@ -22,6 +22,11 @@ export default function Home() {
   const isAutoScrollingRef = useRef(false);
   const isInterruptedRef = useRef(false);
   const animationFrameIdRef = useRef<number | null>(null);
+  const mountTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    mountTimeRef.current = Date.now();
+  }, []);
 
   // Trigger the 10s auto-scroll animation
   const triggerAutoScroll = () => {
@@ -35,13 +40,23 @@ export default function Home() {
     isAutoScrollingRef.current = true;
 
     let startTime: number | null = null;
-    const duration = 10000; // 10 seconds
-    const startScrollY = window.scrollY; // should be 0
+    const startScrollY = window.scrollY; // start from current position
 
     // The hero container is 800vh, so scroll range is 7 viewports
     const getTargetScrollY = () => {
       return window.innerHeight * 7;
     };
+
+    const targetScrollY = getTargetScrollY();
+    const remainingDistance = Math.max(0, targetScrollY - startScrollY);
+
+    // Calculate remaining duration proportionally so speed is consistent
+    const duration = (remainingDistance / targetScrollY) * 10000;
+
+    if (duration <= 0) {
+      isAutoScrollingRef.current = false;
+      return;
+    }
 
     const step = (timestamp: number) => {
       if (isInterruptedRef.current) {
@@ -57,7 +72,7 @@ export default function Home() {
       const easeInOutQuad = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
       const easeProgress = easeInOutQuad(progress);
 
-      const targetScroll = startScrollY + (getTargetScrollY() - startScrollY) * easeProgress;
+      const targetScroll = startScrollY + (targetScrollY - startScrollY) * easeProgress;
       window.scrollTo(0, targetScroll);
 
       if (progress < 1) {
@@ -80,6 +95,29 @@ export default function Home() {
     setIsLoading(false);
   };
 
+  // Toggle animation on canvas click
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    // Avoid triggering when clicking links, buttons, or inputs
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("a") || target.closest("input")) {
+      return;
+    }
+
+    // Only active inside the scrollytelling section
+    const targetScrollY = window.innerHeight * 7;
+    if (window.scrollY >= targetScrollY - 10) {
+      // If at the end, clicking scrolls back to top and restarts
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    if (isAutoScrollingRef.current) {
+      isInterruptedRef.current = true;
+    } else {
+      triggerAutoScroll();
+    }
+  };
+
   // Manage body scroll lock during loading state
   useEffect(() => {
     if (isLoading) {
@@ -94,20 +132,18 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // Handle user input interrupts
+  // Handle user input interrupts (excluding click, since click controls play/pause)
   useEffect(() => {
     if (isLoading) return;
 
     window.addEventListener("wheel", handleInterrupt, { passive: true });
     window.addEventListener("touchmove", handleInterrupt, { passive: true });
     window.addEventListener("keydown", handleInterrupt, { passive: true });
-    window.addEventListener("mousedown", handleInterrupt, { passive: true });
 
     return () => {
       window.removeEventListener("wheel", handleInterrupt);
       window.removeEventListener("touchmove", handleInterrupt);
       window.removeEventListener("keydown", handleInterrupt);
-      window.removeEventListener("mousedown", handleInterrupt);
     };
   }, [isLoading]);
 
@@ -147,14 +183,23 @@ export default function Home() {
     setLoadProgress(percent);
 
     if (loaded === total) {
-      setIsLoadedComplete(true);
+      const elapsed = Date.now() - mountTimeRef.current;
+      const remainingTime = Math.max(0, 5000 - elapsed);
+      
+      setTimeout(() => {
+        setIsLoadedComplete(true);
+      }, remainingTime);
     }
   };
 
   return (
     <main className="relative min-h-screen">
       {/* Immersive Hero Canvas Scrollytelling (Sticky Container) */}
-      <div ref={containerRef} className="relative w-full h-[800vh]">
+      <div 
+        ref={containerRef} 
+        onClick={handleCanvasClick}
+        className="relative w-full h-[800vh] cursor-pointer"
+      >
         <ScrollyTellingCanvas 
           containerRef={containerRef} 
           onLoadProgress={handleLoadProgress}
