@@ -1,20 +1,31 @@
+"use client";
+
+import { useRef } from "react";
 import ScrollyTellingCanvas from "@/components/ScrollyTellingCanvas";
 import StoryOverlay from "@/components/StoryOverlay";
+import StatsSection from "@/components/StatsSection";
+import FeaturedCollection from "@/components/FeaturedCollection";
+import WhyChooseUs from "@/components/WhyChooseUs";
+import ContactCTA from "@/components/ContactCTA";
+import Footer from "@/components/Footer";
 
 export default function Home() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
   return (
     <main className="relative min-h-screen">
-      {/* 
-        The canvas component is sticky and fills the viewport. 
-        It plays the sequence based on the scroll progress of the entire page.
-      */}
-      <ScrollyTellingCanvas />
+      {/* Immersive Hero Canvas Scrollytelling (Sticky Container) */}
+      <div ref={containerRef} className="relative w-full h-[3000vh]">
+        <ScrollyTellingCanvas containerRef={containerRef} />
+        <StoryOverlay containerRef={containerRef} />
+      </div>
       
-      {/* 
-        The story overlay provides the scrollable height (500vh) 
-        and triggers the text animations as you scroll down.
-      */}
-      <StoryOverlay />
+      {/* B2B Portal Content */}
+      <StatsSection />
+      <FeaturedCollection />
+      <WhyChooseUs />
+      <ContactCTA />
+      <Footer />
     </main>
   );
 }

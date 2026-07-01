@@ -3,8 +3,11 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 
-export default function StoryOverlay() {
-  const containerRef = useRef<HTMLDivElement>(null);
+interface StoryOverlayProps {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}
+
+export default function StoryOverlay({ containerRef }: StoryOverlayProps) {
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"]
@@ -31,7 +34,7 @@ export default function StoryOverlay() {
   const y5 = useTransform(scrollYProgress, [0.85, 0.9, 1], [50, 0, 0]);
 
   return (
-    <div ref={containerRef} className="relative w-full" style={{ height: "3000vh" }}>
+    <div className="absolute inset-0 w-full h-full pointer-events-none">
       {/* 0-15% */}
       <motion.div
         style={{ opacity: opacity1, y: y1 }}

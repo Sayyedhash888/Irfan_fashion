@@ -6,13 +6,20 @@ import { useScroll, useTransform, useMotionValueEvent, useSpring } from "framer-
 const FRAME_COUNT = 300;
 const PRELOAD_BATCH_SIZE = 50;
 
-export default function ScrollyTellingCanvas() {
+interface ScrollyTellingCanvasProps {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}
+
+export default function ScrollyTellingCanvas({ containerRef }: ScrollyTellingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imagesRef = useRef<(HTMLImageElement | null)[]>(new Array(FRAME_COUNT).fill(null));
   const [imagesLoaded, setImagesLoaded] = useState(0);
 
-  // We want to track scroll progress across the parent container
-  const { scrollYProgress } = useScroll();
+  // Track scroll progress specifically across the hero container
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start start", "end end"]
+  });
   
   // Apply a spring to smooth out the choppiness of native scrolling
   const smoothProgress = useSpring(scrollYProgress, {
